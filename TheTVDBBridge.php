@@ -10,20 +10,31 @@ function date_compare($a, $b)
 class TheTVDBBridge extends BridgeAbstract{
     const MAINTAINER = "Astyan";
     const NAME = "TheTVDB";
-    const URI = "https://api.thetvdb.com/";
+    const URI = "https://thetvdb.com/";
+    const APIURI = "https://api.thetvdb.com/";
     const CACHE_TIMEOUT = 43200; // 12h
-    const DESCRIPTION = "Returns latest episode of a serie on TheTVDB";
+    const DESCRIPTION = "Returns latest episodes of a serie with theTVDB api";
     const PARAMETERS = array(array(
             'serie_id'=>array(
                 'type'=>'number',
                 'name'=>'ID',
                 'required'=>true,
-            )
+            ),
+            'nb_episode'=>array(
+                'type'=>'number',
+                'name'=>'Number of episodes',
+                'defaultValue'=>10,
+                'required'=>true,
+            ),
         )
     );
     const APIACCOUNT = "RSSBridge";
     const APIKEY = "76DE1887EA401C9A";
     const APIUSERKEY = "B52869AC6005330F";
+    
+    private function getAPIURI(){
+        return self::APIURI;
+    }
     
     private function getToken(){
         //login and get token, don't use curlJob to do less adaptations
@@ -31,7 +42,7 @@ class TheTVDBBridge extends BridgeAbstract{
                              "username" => self::APIACCOUNT, 
                              "userkey" => self::APIUSERKEY);
         $login_json = json_encode($login_array);
-        $ch = curl_init($this->getURI().'login');
+        $ch = curl_init($this->getAPIURI().'login');
         curl_setopt($ch, CURLOPT_CUSTOMREQUEST, "POST");
         curl_setopt($ch, CURLOPT_POSTFIELDS, $login_json);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
@@ -75,22 +86,28 @@ class TheTVDBBridge extends BridgeAbstract{
     
     private function getLatestSeasonNumber($token, $serie_id){
         // get the last season
-        $url = $this->getURI().'series/'.$serie_id.'/episodes/summary';
+        $url = $this->getAPIURI().'series/'.$serie_id.'/episodes/summary';
         $summary = $this->curlJob($token, $url);
         return max($summary['data']->airedSeasons);
     }
     
-    private function getSeasonEpisodes($token, $serie_id, $season, &$episodelist, $nbepisodemin, $page=1){
-        $url = $this->getURI().'series/'.$serie_id.'/episodes/query?airedSeason='.$season.'?page='.$page;
+    private function getSerieName($token, $serie_id){
+        $url = $this->getAPIURI().'series/'.$serie_id;
+        $serie = $this->curlJob($token, $url);
+        return $serie['data']->seriesName;
+    }
+    
+    private function getSeasonEpisodes($token, $serie_id, $season, $seriename ,&$episodelist, $nbepisodemin, $page=1){
+        $url = $this->getAPIURI().'series/'.$serie_id.'/episodes/query?airedSeason='.$season.'?page='.$page;
         $episodes = $this->curlJob($token, $url);
-        // we don't check the number of page because we suppose there is less than 100 episodes in every season
+        // we don't check the number of page because we assume there is less than 100 episodes in every season
         $episodes = (array)$episodes['data'];
         $episodes = array_slice($episodes, -$nbepisodemin, $nbepisodemin);
         foreach($episodes as $episode){
             $episodedata = array();
-            $episodedata['uri'] = 'http://thetvdb.com'; //should link to the episodes on thetvdb
+            $episodedata['uri'] = $this->getURI().'?tab=episode&seriesid='.$serie_id.'&seasonid='.$episode->airedSeasonID.'&id='.$episode->id; 
             $episodedata['title'] = 'S'.$episode->airedSeason.'E'.$episode->airedEpisodeNumber.'('.$episode->absoluteNumber.') : '.$episode->episodeName;
-            $episodedata['author'] = ''; // should be the name of the serie
+            $episodedata['author'] = $seriename;
             $date = DateTime::createFromFormat('Y-m-d H:i:s', $episode->firstAired.' 00:00:00');
             $episodedata['timestamp'] = $date->getTimestamp();
             $episodedata['content'] = $episode->overview;
@@ -100,19 +117,22 @@ class TheTVDBBridge extends BridgeAbstract{
  
     public function collectData(){
         $serie_id = $this->getInput('serie_id');
-        $nbepisode = 10; // put it as a param ?
+        $nbepisode = $this->getInput('nb_episode');
         $episodelist = array();
         $token = $this->getToken();
         $maxseason = $this->getLatestSeasonNumber($token, $serie_id);
+        $seriename = $this->getSerieName($token, $serie_id); 
         $season = $maxseason;
         while(sizeof($episodelist) < $nbepisode and $season >= 1){
             $nbepisodetmp = $nbepisode - sizeof($episodelist);
-            $this->getSeasonEpisodes($token, $serie_id, $season, $episodelist, $nbepisodetmp);
+            $this->getSeasonEpisodes($token, $serie_id, $season, $seriename, $episodelist, $nbepisodetmp);
             $season = $season - 1;
         }
         // add the 10 last specials episodes
-        $this->getSeasonEpisodes($token, $serie_id, 0, $episodelist, $nbepisode);
-        // sort and keep the 10 last, works bad with the netflix serie (all episode lauch at once)
+        try{ // catch to avoid error if empty
+            $this->getSeasonEpisodes($token, $serie_id, 0, $seriename, $episodelist, $nbepisode);
+        } catch (Exception $e) { }
+        // sort and keep the 10 last episodes, works bad with the netflix serie (all episode lauch at once)
         usort($episodelist, 'date_compare');
         $episodelist = array_slice($episodelist, 0, $nbepisode);
         
