@@ -8,9 +8,10 @@ function date_compare($a, $b)
 } 
 
 class TheTVDBBridge extends BridgeAbstract{
+    
     const MAINTAINER = "Astyan";
     const NAME = "TheTVDB";
-    const URI = "https://thetvdb.com/";
+    const URI = "http://thetvdb.com/";
     const APIURI = "https://api.thetvdb.com/";
     const CACHE_TIMEOUT = 43200; // 12h
     const DESCRIPTION = "Returns latest episodes of a serie with theTVDB api";
@@ -106,6 +107,7 @@ class TheTVDBBridge extends BridgeAbstract{
         foreach($episodes as $episode){
             $episodedata = array();
             $episodedata['uri'] = $this->getURI().'?tab=episode&seriesid='.$serie_id.'&seasonid='.$episode->airedSeasonID.'&id='.$episode->id; 
+            // need to check if the absoluteNumber exist
             $episodedata['title'] = 'S'.$episode->airedSeason.'E'.$episode->airedEpisodeNumber.'('.$episode->absoluteNumber.') : '.$episode->episodeName;
             $episodedata['author'] = $seriename;
             $date = DateTime::createFromFormat('Y-m-d H:i:s', $episode->firstAired.' 00:00:00');
@@ -114,7 +116,7 @@ class TheTVDBBridge extends BridgeAbstract{
             $episodelist[] = $episodedata;            
         }
     }
- 
+
     public function collectData(){
         $serie_id = $this->getInput('serie_id');
         $nbepisode = $this->getInput('nb_episode');
@@ -138,9 +140,7 @@ class TheTVDBBridge extends BridgeAbstract{
         
         $this->items = $episodelist;
     }
-    
 }
-?>
     
     
     
