@@ -1,12 +1,5 @@
 <?php
 
-function date_compare($a, $b)
-{
-    $t1 = $a['timestamp'];
-    $t2 = $b['timestamp'];
-    return $t1 < $t2;
-} 
-
 class TheTVDBBridge extends BridgeAbstract{
     
     const MAINTAINER = "Astyan";
@@ -107,7 +100,7 @@ class TheTVDBBridge extends BridgeAbstract{
         foreach($episodes as $episode){
             $episodedata = array();
             $episodedata['uri'] = $this->getURI().'?tab=episode&seriesid='.$serie_id.'&seasonid='.$episode->airedSeasonID.'&id='.$episode->id; 
-            // need to check if the absoluteNumber exist
+            // check if the absoluteNumber exist
             if(isset($episode->absoluteNumber)){
                 $episodedata['title'] = 'S'.$episode->airedSeason.'E'.$episode->airedEpisodeNumber.'('.$episode->absoluteNumber.') : '.$episode->episodeName;
             }else{
@@ -139,10 +132,8 @@ class TheTVDBBridge extends BridgeAbstract{
             $this->getSeasonEpisodes($token, $serie_id, 0, $seriename, $episodelist, $nbepisode);
         } catch (Exception $e) { }
         // sort and keep the 10 last episodes, works bad with the netflix serie (all episode lauch at once)
-        usort($episodelist, 'date_compare');
-        $episodelist = array_slice($episodelist, 0, $nbepisode);
-        
-        $this->items = $episodelist;
+        usort($episodelist, function ($a, $b) { return $a['timestamp'] < $b['timestamp'];});
+        $this->items = array_slice($episodelist, 0, $nbepisode);
     }
 }
     
