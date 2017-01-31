@@ -108,7 +108,11 @@ class TheTVDBBridge extends BridgeAbstract{
             $episodedata = array();
             $episodedata['uri'] = $this->getURI().'?tab=episode&seriesid='.$serie_id.'&seasonid='.$episode->airedSeasonID.'&id='.$episode->id; 
             // need to check if the absoluteNumber exist
-            $episodedata['title'] = 'S'.$episode->airedSeason.'E'.$episode->airedEpisodeNumber.'('.$episode->absoluteNumber.') : '.$episode->episodeName;
+            if(isset($episode->absoluteNumber)){
+                $episodedata['title'] = 'S'.$episode->airedSeason.'E'.$episode->airedEpisodeNumber.'('.$episode->absoluteNumber.') : '.$episode->episodeName;
+            }else{
+                $episodedata['title'] = 'S'.$episode->airedSeason.'E'.$episode->airedEpisodeNumber.' : '.$episode->episodeName;
+            }
             $episodedata['author'] = $seriename;
             $date = DateTime::createFromFormat('Y-m-d H:i:s', $episode->firstAired.' 00:00:00');
             $episodedata['timestamp'] = $date->getTimestamp();
